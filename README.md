@@ -1,4 +1,4 @@
-# Nes++
+# NES++
 
 #### WORK IS IN PROGRESS at the moment, code will be available soon, please check back...
 
