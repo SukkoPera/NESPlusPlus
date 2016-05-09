@@ -1,8 +1,8 @@
-# Nessie
+# Nes++
 
 #### WORK IS IN PROGRESS at the moment, code will be available soon, please check back...
 
-**Nessie** is a modchip for the **Nintendo Entertainment System** (AKA **NES**). It has the following features:
+**NES++** is a modchip for the **Nintendo Entertainment System** (AKA **NES**). It has the following features:
 
 - **Reset-From-Pad** (AKA **In-Game-Reset** AKA **IGR**): Press **Select + Start + A + B**.
 - **NESRGB on/off toggling and palette switching**:
@@ -17,3 +17,5 @@
 - Even though default settings are recommended, **everything can be customized** to taste.
 - Uses the popular **Arduino environment**, allowing for easy development, testing and modifications.
 - Last but not least, it is **Open Source and Free Software**!
+
+Note that there is also a [NES emulator named NES++](https://sourceforge.net/projects/nespp/), but that is a different project. I chose to use the same name since it hasn't been update in a while, so no confusion should arise.
