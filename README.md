@@ -18,4 +18,4 @@
 - Uses the popular **Arduino environment**, allowing for easy development, testing and modifications.
 - Last but not least, it is **Open Source and Free Software**!
 
-*Note that there is also a [NES emulator named nes++](https://sourceforge.net/projects/nespp/), but it is a different project. I chose to use the same name since it hasn't been update in a while, so no confusion should arise.*
+*Note that there is also a [NES emulator named nes++](https://sourceforge.net/projects/nespp/), but it is a different project. I chose to use the same name in analogy with [my MegaDrive++ project](https://github.com/SukkoPera/MegaDrivePlusPlus), but since the emulator hasn't been update in a while, no confusion should arise.*
