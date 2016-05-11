@@ -144,6 +144,41 @@ enum {
  * ADVANCED SETTINGS
  ******************************************************************************/
 
+/*******************************************************************************
+ * WARNING - ACHTUNG - ATTENZIONE - ATTENTION - ATENCION - WAARSCHUWING - UWAGA!
+ *******************************************************************************
+ *
+ * Please BE CAREFUL here, as you risk DESTROYING YOUR NESRGB!
+ *
+ * Only proceed if you understand what you are doing!
+ *
+ * Our chip works at 5V, while the Altera FPGA on the NESRGB uses 3.3V, so
+ * we must do some kind of level shifting.
+ *
+ * Experience suggests that the NESRGB has internal pull-ups on the palette
+ * pins, so emulating an open-collector output should allow us to interface
+ * directly. Basically, to set a pin to 1 we switch the pin to INPUT mode,
+ * it will go to high impedance mode and the FPGA will see 3.3V because of
+ * its internal pull-up. To set a pin to 0 we switch the pin to OUTPUT mode.
+ * The AVR architecture guarantees that the pin will be at the LOW level. If
+ * you want to use this strategy, leave the following #define COMMENTED.
+ *
+ * See http://forum.arduino.cc/index.php?topic=335689.0
+ *
+ * Alternatively, proper level shifting can be put in place. Some possibilities:
+ * - 74LVX125 buffer with 5V-tolerant inputs
+ * - CD4504BE CMOS-to-CMOS level shifter
+ * - SparkFun Logic Level Converter: https://www.sparkfun.com/products/12009
+ * - 2 MOSFETs: http://www.hobbytronics.co.uk/mosfet-voltage-level-converter
+ * - 2-3 series diodes
+ * - 3.3V Zener (BZX55C3V3) + series resistor (220 ohm should be fine)
+ *
+ * If you have used one of these solutions, UNCOMMENT the following #define, but
+ * please please please MAKE SURE THAT NO MORE THAN 3.3V ARE PUT ON THE NESRGB
+ * PALETTE INPUTS!
+ */
+//~ #define USE_LEVEL_SHIFTER
+
 /* The reset line must be released some time after power is applied, since there
  * is a capacitor on it that needs to be charged (milliseconds)
  */
@@ -185,7 +220,7 @@ enum {
  * multi-colored led and can be used together with it, provided that you
  * have enough pins. Otherwise please disable it manually.
  */
-//#define PIN_LED_SINGLE 3
+//~ #define PIN_LED_SINGLE 3
 
 /* Debounce duration for the reset button. This might need increasing,
  * since NES's and their buttons are old and boooouncy. Note that if you
@@ -222,14 +257,14 @@ enum {
 */
 
 #if defined PIN_RESET_IN && defined PIN_RESET_OUT && \
-    defined COMBO_TRIGGER && defined COMBO_RESET
+	defined COMBO_TRIGGER && defined COMBO_RESET
 	#define ENABLE_RESET_FROM_PAD
 #endif
 
 #if defined PIN_NESRGB_PALETTE_1 && defined PIN_NESRGB_PALETTE_2 && \
-    defined PIN_NESRGB_PALETTE_3 && defined COMBO_TRIGGER && \
-    (defined COMBO_NEXT_PALETTE || defined COMBO_PREV_PALETTE || \
-     defined COMBO_NESRGB_OFF)
+	defined PIN_NESRGB_PALETTE_3 && defined COMBO_TRIGGER && \
+	(defined COMBO_NEXT_PALETTE || defined COMBO_PREV_PALETTE || \
+	 defined COMBO_NESRGB_OFF)
 	#define ENABLE_PALETTE_FROM_PAD
 #endif
 
@@ -244,8 +279,8 @@ enum {
 #endif
 
 #if defined PIN_RESET_IN && defined PIN_RESET_OUT && \
-    defined PIN_NESRGB_PALETTE_1 && defined PIN_NESRGB_PALETTE_2 && \
-    defined PIN_NESRGB_PALETTE_3
+	defined PIN_NESRGB_PALETTE_1 && defined PIN_NESRGB_PALETTE_2 && \
+	defined PIN_NESRGB_PALETTE_3
 	#define ENABLE_PALETTE_FROM_RESET
 #endif
 
@@ -269,15 +304,15 @@ enum {
 
 // Defined if we need to eavesdrop for gamepad data
 #if (defined ENABLE_RESET_FROM_PAD || \
-     defined ENABLE_PALETTE_FROM_PAD || defined ENABLE_CIC_FROM_PAD)
-     #define ENABLE_PAD
+	 defined ENABLE_PALETTE_FROM_PAD || defined ENABLE_CIC_FROM_PAD)
+	 #define ENABLE_PAD
 #else
 	#warning Pad snooping disabled
 #endif
 
 // Defined if we need to manage the reset line (both IN and OUT)
 #if (defined ENABLE_PALETTE_FROM_RESET || \
-     defined ENABLE_CIC_FROM_RESET || defined ENABLE_RESET_FROM_PAD)
+	 defined ENABLE_CIC_FROM_RESET || defined ENABLE_RESET_FROM_PAD)
 	#define ENABLE_RESET
 #else
 	#warning Reset button management disabled
@@ -327,7 +362,8 @@ byte palette_led_colors[][PALETTE_POSITIONS] = {
 };
 
 /*
- * Palette-Switch Info - Taken from NESRGB-IGR by Peter Bartmann <peter.bartmann@gmx.de>
+ * Palette-Switch Info
+ * Taken from NESRGB-IGR by Peter Bartmann <peter.bartmann@gmx.de>
  * 0 = shorted to ground. 1 = unconnected.
  *
  * V1.0,1.3
@@ -367,16 +403,22 @@ unsigned long palette_last_changed_time;
 byte palette_before_off;
 
 
-// See http://forum.arduino.cc/index.php?topic=335689.0
 void set_palette_pin (byte pin, byte val) {
+#ifdef USE_LEVEL_SHIFTER
+	/* Proper level shifting is in place (Right???), just switch the pin
+	 * HIGH/LOW as necessary
+	 */
+	digitalWrite (pin, val);
+#else
+	// Emulate open-collector output
 	if (val) {
-		// "Disconnect" pin
+		// Make pin hi-Z, pull-up internal to the FPGA will do the rest
 		pinMode (pin, INPUT);
 	} else {
-		// Ground pin
+		// Short pin to ground
 		pinMode (pin, OUTPUT);
-		digitalWrite (pin, LOW);    // Just to make sure, but shouldn't be necessary
 	}
+#endif
 }
 
 void set_palette (int new_palette, boolean flash = true) {
@@ -584,7 +626,7 @@ void set_cic (boolean enabled, boolean flash = true) {
 
 	cic_enabled = enabled;
 
-	// Flash leds to signal CIC status: 10 flashes = OFF, 10 = ON
+	// Flash leds to signal CIC status: 6 flashes = OFF, 10 = ON
 	if (flash) {
 		for (int i = 0; i < (enabled ? 10 : 6); i++) {
 			led_off ();
@@ -796,7 +838,28 @@ void setup () {
 
 	// Init palette
 #ifdef ENABLE_PALETTE
-	palette = 0;		// NESRGB OFF by default
+	// Initialize output pins
+#ifdef USE_LEVEL_SHIFTER
+	pinMode (PIN_NESRGB_PALETTE_1, OUTPUT);
+	pinMode (PIN_NESRGB_PALETTE_2, OUTPUT);
+	pinMode (PIN_NESRGB_PALETTE_3, OUTPUT);
+#else
+	/* Pins are in input (i.e. high Z) mode by default, so this isn't strictly
+	 * necessary. It's here mainly in case some Arduino core goes crazy and
+	 * changes the initial pin status.
+	 */
+	pinMode (PIN_NESRGB_PALETTE_1, INPUT);
+	digitalWrite (PIN_NESRGB_PALETTE_1, LOW);		// Even less necessary
+
+	pinMode (PIN_NESRGB_PALETTE_2, INPUT);
+	digitalWrite (PIN_NESRGB_PALETTE_2, LOW);
+
+	pinMode (PIN_NESRGB_PALETTE_3, INPUT);
+	digitalWrite (PIN_NESRGB_PALETTE_3, LOW);
+#endif
+
+	// NESRGB OFF by default
+	palette = 0;
 	palette_before_off = 0;
 #ifdef PALETTE_ROM_OFFSET
 	palette = EEPROM.read (PALETTE_ROM_OFFSET);
