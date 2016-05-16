@@ -1,6 +1,6 @@
 # NES++
 
-#### WORK IS IN PROGRESS at the moment, code will be available soon, please check back...
+#### WORK IS IN PROGRESS at the moment, docs will be available soon, please check back...
 
 **NES++** is a modchip for the **Nintendo Entertainment System** (AKA **NES**). It has the following features:
 
