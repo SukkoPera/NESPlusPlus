@@ -229,19 +229,19 @@ enum {
  */
 #define DEBOUNCE_MS 70
 
-/* Two consecutive presses of the reset button are detect within this
- * amount of milliseonds will toggle the CIC chip status.
+/* Two consecutive presses of the reset button within this amount of
+ * milliseconds will toggle the CIC chip status.
  */
-#define DBLCLICK_TIMEOUT 200
+#define DBLCLICK_TIMEOUT 250
 
 /* Keeping the reset button pressed longer than this amount of
  * milliseconds will switch to the next palette, shorter (single)
  * presses will reset the console.
  */
-#define LONGPRESS_LEN 750
+#define LONGPRESS_LEN 700
 
 // Duration of the reset pulse (milliseconds)
-#define RESET_LEN 300
+#define RESET_LEN 250
 
 
 /*******************************************************************************
@@ -647,15 +647,17 @@ void toggle_cic () {
 
 #ifdef ENABLE_RESET
 enum ResetButtonState {
-  RST_IDLE,      // Button not pressed
-  RST_CLICKED,   // Button pressed first time and kept pressed
-  RST_DBLCLICK,  // Button released after first press
-  RST_LONGPRESS  // Button kept pressed
+	RST_IDLE,				// Button not pressed
+	RST_1ST_PRESS,			// Button pressed first time
+	RST_WAIT_2ND,			// Button released after first press
+	RST_LONGPRESS,			// Button kept pressed at first press
+	RST_2ND_PRESS,			// Button pressed second time
+	RST_LONG_2ND_PRESS		// Button kept pressed at second press
 };
 
 void handle_reset_button () {
 	static byte pressed_before = LOW, debounce_state = HIGH;
-	static long last_int = 0, press_start = 0, last_released;
+	static long last_int = 0, last_pressed = 0, last_released;
 	static unsigned int hold_cycles = 0;
 	static ResetButtonState state = RST_IDLE;
 
@@ -673,48 +675,76 @@ void handle_reset_button () {
 			case RST_IDLE:
 				if (just_pressed) {
 					// Button was just pressed
-					press_start = millis ();
-					state = RST_CLICKED;
+					last_pressed = millis ();
+					state = RST_1ST_PRESS;
 				}
 				break;
-			case RST_CLICKED:
+			case RST_1ST_PRESS:
 				if (just_released) {
 					// Button was just released after 1st click
-					state = RST_DBLCLICK;
+					state = RST_WAIT_2ND;
 					last_released = millis ();
-				} else if (millis () - press_start >= LONGPRESS_LEN) {
+				} else if (millis () - last_pressed >= LONGPRESS_LEN) {
 					/* First long press hit. No need to trigger action
 					 * here, it will be called immediately at the next
 					 * iteration in case RST_LONGPRESS.
 					 */
-					hold_cycles = 0;
 					state = RST_LONGPRESS;
 				}
 				break;
-			case RST_DBLCLICK:
-				if (millis () - last_released >= DBLCLICK_TIMEOUT) {
+			case RST_WAIT_2ND:
+				if (reset_pressed_now) {
+					// Button quickly pressed twice
+					last_pressed = millis ();
+
+					state = RST_2ND_PRESS;
+				} else if (millis () - last_released >= DBLCLICK_TIMEOUT) {
 					// Double click timeout expired, so this was a single click
 					debugln ("Reset button clicked");
 					reset_console ();
 
 					state = RST_IDLE;
-				} else if (just_pressed) {
-					// Double click
+				}
+				break;
+			case RST_LONGPRESS:
+				if (!reset_pressed_now) {
+					// Button finally released
+					state = RST_IDLE;
+				} else {
+					// Reset has been held for a while
+					debugln ("Reset button held");
+					reset_console_adlibitum ();
+
+					// Remain in this state
+				}
+				break;
+			case RST_2ND_PRESS:
+				if (just_released) {
+					// Button released again, so this was a double click
 					debugln ("Reset button double-clicked");
+
 #ifdef ENABLE_CIC_FROM_RESET
 					toggle_cic ();
 #endif
 
 					state = RST_IDLE;
+				} else if (millis () - last_pressed >= LONGPRESS_LEN) {
+					/* First "long double press" hit. No need to trigger action
+					 * here, it will be called immediately at the next
+					 * iteration in case RST_LONG_2ND_PRESS.
+					 */
+					hold_cycles = 0;
+
+					state = RST_LONG_2ND_PRESS;
 				}
 				break;
-			case RST_LONGPRESS:
-				if (just_released) {
+			case RST_LONG_2ND_PRESS:
+				if (!reset_pressed_now) {
 					// Button finally released
 					state = RST_IDLE;
-				} else if ((millis () - press_start) / LONGPRESS_LEN >= (hold_cycles + 1)) {
-					// Reset has been held for a while
-					debugln ("Reset button hold");
+				} else if ((millis () - last_pressed) / LONGPRESS_LEN >= (hold_cycles + 1)) {
+					// This is a "Long double click"
+					debugln ("Reset button double-held");
 					++hold_cycles;
 
 #ifdef ENABLE_PALETTE_FROM_RESET
@@ -727,6 +757,20 @@ void handle_reset_button () {
 
 		pressed_before = reset_pressed_now;
 	}
+}
+
+// Resets the console as long as the reset button is pressed
+void reset_console_adlibitum () {
+	debugln ("Resetting console ad libitum");
+
+	disable_pad ();
+
+	digitalWrite (PIN_RESET_OUT, HIGH);
+	while (digitalRead (PIN_RESET_IN))
+		;
+	digitalWrite (PIN_RESET_OUT, LOW);
+
+	init_pad ();
 }
 
 void reset_console () {
